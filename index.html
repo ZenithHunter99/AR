@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Model Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsartoolkit5/artoolkit.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/2.1.5/tesseract.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #0a0a1a;
+            color: #fff;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #2a2a4a 0%, #151530 100%);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #4a8fe7, #8a2be2);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 2px 10px rgba(138, 43, 226, 0.3);
+        }
+        
+        p.tagline {
+            color: #aaa;
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+        }
+        
+        .flex-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .upload-section, .ar-section {
+            flex: 1;
+            min-width: 300px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+        
+        h2 {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            color: #4a8fe7;
+        }
+        
+        .drop-area {
+            border: 2px dashed #4a8fe7;
+            border-radius: 10px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+        
+        .drop-area:hover {
+            background-color: rgba(74, 143, 231, 0.1);
+        }
+        
+        .drop-area p {
+            color: #4a8fe7;
+            font-size: 1.2rem;
+        }
+        
+        .drop-area i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: #4a8fe7;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .model-name-input {
+            width: 100%;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background-color: #1a1a2e;
+            color: #fff;
+            font-size: 1rem;
+            margin-bottom: 20px;
+        }
+        
+        .model-name-input:focus {
+            outline: none;
+            border-color: #4a8fe7;
+            box-shadow: 0 0 8px rgba(74, 143, 231, 0.5);
+        }
+        
+        .btn {
+            background: linear-gradient(90deg, #4a8fe7, #8a2be2);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-block;
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(74, 143, 231, 0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn-disabled {
+            background: linear-gradient(90deg, #666, #888);
+            cursor: not-allowed;
+        }
+        
+        .model-library {
+            margin-top: 40px;
+        }
+        
+        .model-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .model-item {
+            background-color: #1a1a2e;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+        
+        .model-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+        
+        .model-thumbnail {
+            width: 100%;
+            height: 100px;
+            background-color: #2a2a4a;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #4a8fe7;
+        }
+        
+        .model-name {
+            font-size: 0.9rem;
+            color: #eee;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        #ar-view {
+            width: 100%;
+            height: 400px;
+            background-color: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .instructions {
+            background-color: rgba(26, 26, 46, 0.8);
+            border-left: 4px solid #4a8fe7;
+            padding: 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 30px 0;
+        }
+        
+        .instructions h3 {
+            color: #4a8fe7;
+            margin-bottom: 15px;
+        }
+        
+        .instructions ol {
+            padding-left: 20px;
+            color: #ddd;
+        }
+        
+        .instructions li {
+            margin-bottom: 10px;
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .status {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(10, 10, 26, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            flex-direction: column;
+            display: none;
+        }
+        
+        .spinner {
+            border: 5px solid rgba(255, 255, 255, 0.1);
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border-left-color: #4a8fe7;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            padding: 20px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .flex-container {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AR Model Viewer</h1>
+            <p class="tagline">Upload 3D models and view them in augmented reality with text recognition</p>
+        </header>
+        
+        <div class="flex-container">
+            <div class="upload-section">
+                <h2>Upload Your 3D Model</h2>
+                <div class="drop-area" id="drop-area">
+                    <p>Drag & drop your .fbx model here</p>
+                    <p>or</p>
+                    <label for="file-input" class="btn">Choose File</label>
+                    <input type="file" id="file-input" accept=".fbx">
+                </div>
+                
+                <input type="text" class="model-name-input" id="model-name" placeholder="Enter a name for your model...">
+                
+                <button class="btn" id="upload-btn">Upload Model</button>
+                
+                <div class="model-library">
+                    <h2>Your Model Library</h2>
+                    <div class="model-list" id="model-list">
+                        <!-- Models will be listed here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="ar-section">
+                <h2>AR Text Recognition View</h2>
+                <div id="ar-view">
+                    <video id="video" autoplay playsinline></video>
+                    <div class="status" id="status">Waiting for camera...</div>
+                </div>
+                
+                <div class="controls">
+                    <button class="btn" id="start-ar">Start AR Experience</button>
+                    <button class="btn" id="scan-text">Scan Text</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <h3>How to Use</h3>
+            <ol>
+                <li>Upload your .fbx 3D model and give it a name</li>
+                <li>Write the model name on a piece of paper</li>
+                <li>Click "Start AR Experience" to access your camera</li>
+                <li>Point the camera at the paper with the text</li>
+                <li>Click "Scan Text" to recognize the name and render the model</li>
+                <li>The 3D model will appear on the paper, properly aligned</li>
+            </ol>
+        </div>
+        
+        <div class="footer">
+            <p>© 2025 AR Model Viewer. All rights reserved.</p>
+        </div>
+    </div>
+    
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p id="loading-text">Processing your model...</p>
+    </div>
+    
+    <script>
+        // Store uploaded models
+        const modelLibrary = {};
+        
+        // DOM Elements
+        const fileInput = document.getElementById('file-input');
+        const dropArea = document.getElementById('drop-area');
+        const modelNameInput = document.getElementById('model-name');
+        const uploadBtn = document.getElementById('upload-btn');
+        const modelList = document.getElementById('model-list');
+        const video = document.getElementById('video');
+        const startARBtn = document.getElementById('start-ar');
+        const scanTextBtn = document.getElementById('scan-text');
+        const statusElement = document.getElementById('status');
+        const loadingOverlay = document.getElementById('loading');
+        const loadingText = document.getElementById('loading-text');
+        
+        // AR variables
+        let scene, camera, renderer, model;
+        let isARActive = false;
+        
+        // Handle file drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, unhighlight, false);
+        });
+        
+        function highlight() {
+            dropArea.classList.add('highlight');
+        }
+        
+        function unhighlight() {
+            dropArea.classList.remove('highlight');
+        }
+        
+        dropArea.addEventListener('drop', handleDrop, false);
+        
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFileSelect();
+            }
+        }
+        
+        fileInput.addEventListener('change', handleFileSelect);
+        
+        function handleFileSelect() {
+            const file = fileInput.files[0];
+            if (file && file.name.toLowerCase().endsWith('.fbx')) {
+                dropArea.innerHTML = `<p>Selected: ${file.name}</p>`;
+            } else {
+                alert('Please select a valid .fbx file.');
+            }
+        }
+        
+        // Upload model
+        uploadBtn.addEventListener('click', () => {
+            const file = fileInput.files[0];
+            const modelName = modelNameInput.value.trim();
+            
+            if (!file) {
+                alert('Please select a model file.');
+                return;
+            }
+            
+            if (!modelName) {
+                alert('Please enter a name for your model.');
+                return;
+            }
+            
+            // Show loading overlay
+            loadingOverlay.style.display = 'flex';
+            loadingText.textContent = 'Processing your model...';
+            
+            // Simulate model processing (in a real app, you'd process the FBX file here)
+            setTimeout(() => {
+                // In a real implementation, you would:
+                // 1. Parse the FBX file
+                // 2. Convert it to a format usable by Three.js
+                // 3. Store it in your model library
+                
+                // For this demo, we'll just store the file reference
+                modelLibrary[modelName.toLowerCase()] = {
+                    name: modelName,
+                    file: file,
+                    timestamp: new Date().toISOString()
+                };
+                
+                updateModelList();
+                
+                // Clear form
+                fileInput.value = '';
+                modelNameInput.value = '';
+                dropArea.innerHTML = '<p>Drag & drop your .fbx model here</p><p>or</p><label for="file-input" class="btn">Choose File</label>';
+                
+                // Hide loading overlay
+                loadingOverlay.style.display = 'none';
+                
+                alert(`Model "${modelName}" has been added to your library!`);
+            }, 2000);
+        });
+        
+        // Update model list
+        function updateModelList() {
+            modelList.innerHTML = '';
+            
+            const modelNames = Object.keys(modelLibrary);
+            
+            if (modelNames.length === 0) {
+                modelList.innerHTML = '<p>No models in your library yet.</p>';
+                return;
+            }
+            
+            modelNames.forEach(key => {
+                const model = modelLibrary[key];
+                const modelItem = document.createElement('div');
+                modelItem.className = 'model-item';
+                modelItem.innerHTML = `
+                    <div class="model-thumbnail">3D</div>
+                    <div class="model-name">${model.name}</div>
+                `;
+                modelList.appendChild(modelItem);
+            });
+        }
+        
+        // Initialize model list
+        updateModelList();
+        
+        // AR functionality
+        startARBtn.addEventListener('click', initAR);
+        
+        function initAR() {
+            if (isARActive) {
+                stopAR();
+                startARBtn.textContent = 'Start AR Experience';
+                return;
+            }
+            
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                    .then(function(stream) {
+                        video.srcObject = stream;
+                        video.play();
+                        
+                        // Initialize Three.js scene
+                        initThreeJS();
+                        
+                        isARActive = true;
+                        startARBtn.textContent = 'Stop AR Experience';
+                        statusElement.textContent = 'Camera active. Ready to scan text.';
+                    })
+                    .catch(function(error) {
+                        console.error('Unable to access the camera/webcam: ', error);
+                        statusElement.textContent = 'Camera access denied.';
+                    });
+            } else {
+                console.error('MediaDevices interface not available.');
+                statusElement.textContent = 'Camera not supported on this device.';
+            }
+        }
+        
+        function stopAR() {
+            if (video.srcObject) {
+                const tracks = video.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+                video.srcObject = null;
+            }
+            
+            if (renderer) {
+                renderer.dispose();
+                document.getElementById('ar-view').removeChild(renderer.domElement);
+            }
+            
+            isARActive = false;
+            statusElement.textContent = 'AR stopped.';
+        }
+        
+        function initThreeJS() {
+            // Create scene
+            scene = new THREE.Scene();
+            
+            // Create camera
+            const arViewElement = document.getElementById('ar-view');
+            const aspectRatio = arViewElement.clientWidth / arViewElement.clientHeight;
+            camera = new THREE.PerspectiveCamera(75, aspectRatio, 0.1, 1000);
+            camera.position.z = 5;
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ alpha: true });
+            renderer.setSize(arViewElement.clientWidth, arViewElement.clientHeight);
+            renderer.setClearColor(0x000000, 0);
+            
+            // Insert renderer before video
+            arViewElement.insertBefore(renderer.domElement, video);
+            
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(0, 1, 1);
+            scene.add(directionalLight);
+            
+            // Start animation loop
+            animate();
+        }
+        
+        function animate() {
+            if (!isARActive) return;
+            
+            requestAnimationFrame(animate);
+            
+            if (model) {
+                model.rotation.y += 0.005;
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Text recognition and model rendering
+        scanTextBtn.addEventListener('click', recognizeText);
+        
+        function recognizeText() {
+            if (!isARActive) {
+                alert('Please start the AR experience first.');
+                return;
+            }
+            
+            statusElement.textContent = 'Scanning text...';
+            loadingOverlay.style.display = 'flex';
+            loadingText.textContent = 'Recognizing text...';
+            
+            // Create a canvas to capture the current video frame
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Use Tesseract.js for OCR
+            Tesseract.recognize(
+                canvas.toDataURL('image/jpeg'),
+                'eng',
+                { logger: m => console.log(m) }
+            ).then(({ data: { text } }) => {
+                // Clean and process the recognized text
+                const recognizedText = text.trim().toLowerCase();
+                
+                loadingText.textContent = `Text recognized: "${recognizedText}"`;
+                console.log('Recognized text:', recognizedText);
+                
+                // Check if we have a model with this name
+                for (const modelKey in modelLibrary) {
+                    if (recognizedText.includes(modelKey)) {
+                        loadingText.textContent = `Rendering model: ${modelLibrary[modelKey].name}`;
+                        
+                        // Render the model (in a real app, load the actual FBX)
+                        renderDemoModel(modelKey);
+                        
+                        setTimeout(() => {
+                            loadingOverlay.style.display = 'none';
+                            statusElement.textContent = `Showing model: ${modelLibrary[modelKey].name}`;
+                        }, 1000);
+                        return;
+                    }
+                }
+                
+                // No matching model found
+                setTimeout(() => {
+                    loadingOverlay.style.display = 'none';
+                    statusElement.textContent = 'No matching model found.';
+                }, 1000);
+            });
+        }
+        
+        function renderDemoModel(modelKey) {
+            // Clear existing model if any
+            if (model) {
+                scene.remove(model);
+            }
+            
+            // In a real implementation, you would load the actual FBX file here
+            // For this demo, we'll create a simple placeholder shape based on the model name
+            
+            const modelName = modelLibrary[modelKey].name;
+            
+            // Create different 3D shapes based on model name characteristics
+            // This is just for demonstration purposes
+            if (modelName.toLowerCase().includes('dinosaur')) {
+                // Create a stylized dinosaur shape
+                const dinoGroup = new THREE.Group();
+                
+                // Body
+                const bodyGeometry = new THREE.BoxGeometry(1.5, 0.8, 2);
+                const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0x228B22 });
+                const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                dinoGroup.add(body);
+                
+                // Neck
+                const neckGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.8);
+                const neck = new THREE.Mesh(neckGeometry, bodyMaterial);
+                neck.position.set(0, 0.4, 1.2);
+                neck.rotation.x = -0.2;
+                dinoGroup.add(neck);
+                
+                // Head
+                const headGeometry = new THREE.BoxGeometry(0.6, 0.5, 1);
+                const head = new THREE.Mesh(headGeometry, bodyMaterial);
+                head.position.set(0, 0.6, 1.8);
+                dinoGroup.add(head);
+                
+                // Legs
+                const legGeometry = new THREE.BoxGeometry(0.3, 0.8, 0.3);
+                const legMaterial = new THREE.MeshPhongMaterial({ color: 0x1E8449 });
+                
+                const legFL = new THREE.Mesh(legGeometry, legMaterial);
+                legFL.position.set(0.5, -0.8, 0.6);
+                dinoGroup.add(legFL);
+                
+                const legFR = new THREE.Mesh(legGeometry, legMaterial);
+                legFR.position.set(-0.5, -0.8, 0.6);
+                dinoGroup.add(legFR);
+                
+                const legBL = new THREE.Mesh(legGeometry, legMaterial);
+                legBL.position.set(0.5, -0.8, -0.6);
+                dinoGroup.add(legBL);
+                
+                const legBR = new THREE.Mesh(legGeometry, legMaterial);
+                legBR.position.set(-0.5, -0.8, -0.6);
+                dinoGroup.add(legBR);
+                
+                // Tail
+                const tailGeometry = new THREE.BoxGeometry(0.4, 0.3, 1.5);
+                const tail = new THREE.Mesh(tailGeometry, bodyMaterial);
+                tail.position.set(0, 0, -1.5);
+                tail.rotation.x = 0.2;
+                dinoGroup.add(tail);
+                
+                // Position and scale the entire model
+                dinoGroup.scale.set(0.5, 0.5, 0.5);
+                dinoGroup.position.set(0, 0, 0);
+                
+                model = dinoGroup;
+            } else {
+                // Create a generic model for other names
+                const geometry = new THREE.BoxGeometry(1, 1, 1);
+                const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+                model = new THREE.Mesh(geometry, material);
+            }
+            
+            // Position the model in front of the camera
+            // In a real AR implementation, you would position it based on the detected marker/text position
+            model.position.set(0, 0, -3);
+            
+            // Add the model to the scene
+            scene.add(model);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            if (renderer && camera) {
+                const arViewElement = document.getElementById('ar-view');
+                camera.aspect = arViewElement.clientWidth / arViewElement.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(arViewElement.clientWidth, arViewElement.clientHeight);
+            }
+        });
+    </script>
+</body>
+</html>
